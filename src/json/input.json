@@ -1,0 +1,20 @@
+{
+    "inputMappings": [
+        {
+            "key": "F1",
+            "tool": "select"
+        },
+        {
+            "key": "F2",
+            "tool": "road"
+        },
+        {
+            "key": "F3",
+            "tool": "construction"
+        },
+        {
+            "key": "F4",
+            "tool": "bulldoze"
+        }
+    ]
+}

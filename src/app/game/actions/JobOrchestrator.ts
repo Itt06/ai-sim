@@ -1,0 +1,137 @@
+// The Job Orchestrator (task 047; docs/tasks/038 §9): the job-context ACTION SOURCE. It is a counterpart to
+// Brain in responsibility, never a duplicate in control — it PROPOSES work intents (which continuous work
+// action to run, which flavorful discrete work actions happen on duty, when the shift is over); the Brain
+// arbitrates and the Action engine executes. Jobs never grow a second state machine.
+//
+// Realized as a Brain hook (deterministic registration slot in Brain's built-in order), so proposals flow
+// through the exact intent pipeline everything else uses. Roster knowledge (who works where) stays where it
+// lives today — Workplace/WorkLife — surfaced to the hook through BrainDeps.jobOf; business inventory is the
+// Inventory's `ownedBy` view filled by 044's employer-owned consequence outputs.
+//
+// Determinism: rotation and pool rolls fork the world-seed RNG per (tick, person) with a fixed salt, so the
+// orchestrator never perturbs the event/action/brain streams.
+
+import { interleave } from 'game/actions/ActionEngine';
+import { ActionIntent, BrainHook, HookContext } from 'game/actions/Brain';
+import { SeededRandom, hashStringToSeed } from 'util/random';
+import { isOnShiftAtTick } from 'util/shifts';
+
+export const ORCHESTRATOR_SALT = 0x0b;
+// Below this health, a person calls in sick instead of starting the shift (task 092 / G2).
+export const SICK_HEALTH_THRESHOLD = 0.6;
+
+// On-duty and idle-or-leisure → the continuous work action, chosen by deterministic weighted rotation over
+// the job's repertoire (entry chancePerTick doubles as rotation weight; default 1). On-duty and already
+// working → propose this tick's discrete work actions (same pooling semantics as action children: per-tick
+// chance, maxPerTick slots, cooldowns via the action history, same-tick interleaving). Off-duty and still
+// working → request completion by interrupting (the lifecycle fires stopped_working; 048 adds the automated
+// fallback rule for people who never get a resolution).
+export const jobOrchestratorHook: BrainHook = {
+    id: 'jobOrchestrator',
+    kind: 'onTick',
+    propose({ personId, deps, brain }: HookContext): ActionIntent[] {
+        const job = deps.jobOf?.(personId) ?? null;
+        if (!job) {
+            return [];
+        }
+        const engine = brain.getActionEngine();
+        const onShift = isOnShiftAtTick(job, deps.tick);
+        const active = engine.activeInstanceOf(personId);
+        const working = active ? engine.getDefinition(active.defId)?.category === 'work' : false;
+
+        if (!onShift) {
+            if (working && active) {
+                // Shift over: request completion. Interruption is the engine's completion-request primitive;
+                // the action's onInterrupt lifecycle fires stopped_working through the normal event pipeline.
+                engine.interrupt(active.id, { source: 'brain', causationId: null }, deps, { died: [], born: [], signals: [], committed: [] });
+            }
+            return [];
+        }
+
+        // The fitness gate (task 092 / G2): too sick to work. Instead of the shift, the person stays home
+        // sick — a real continuous action whose onStart fires called_in_sick, so the absence is a log entry
+        // with a cause, not a silent no-show. Health reads through the same context attribute the data uses.
+        const health = engine.contextFor(personId, deps).getAttr('health');
+        if (typeof health === 'number' && health < SICK_HEALTH_THRESHOLD) {
+            if (working && active) {
+                engine.interrupt(active.id, { source: 'brain', causationId: null }, deps, { died: [], born: [], signals: [], committed: [] });
+            }
+            const restingAlready = active ? active.defId === 'resting_at_home_sick' : false;
+            return restingAlready ? [] : [{
+                actionId: 'resting_at_home_sick',
+                sourceHook: 'jobOrchestrator',
+                priority: 90,
+                necessity: 'required',
+                band: 'obligation', // it replaces the shift in the same slot of the day
+                mayInterrupt: true,
+                causationId: null,
+            }];
+        }
+
+        const rng = new SeededRandom(deps.state.worldSeed).fork(deps.tick).fork(hashStringToSeed(personId)).fork(ORCHESTRATOR_SALT);
+
+        if (!working) {
+            const pick = rotateContinuous(job.continuousActions, rng);
+            if (!pick) {
+                return [];
+            }
+            // Field work (task 099): an AMBULATORY work action keeps its own outdoor location — the
+            // officer's beat walk happens on the street, not inside the station. Everything else clocks
+            // in at the workplace as always.
+            const pickDef = engine.getManifest()[pick];
+            const fieldWork = pickDef?.ambulatory !== undefined && pickDef.location === 'outside';
+            return [{
+                actionId: pick,
+                ...(fieldWork ? {} : { locationOverride: `building:${job.workplaceKey}` }),
+                sourceHook: 'jobOrchestrator',
+                priority: 100,
+                necessity: 'required',
+                band: 'obligation', // displaces commitment/leisure via the matrix (task 086)
+                mayInterrupt: true,
+                causationId: null,
+            }];
+        }
+
+        // Already on duty: roll the discrete work pool. Cooldowns key off the person's action history (the
+        // same aggregate hasAction reads), occurrences interleave so "Greeted a customer" never runs twice
+        // in a row when anything else came up this tick.
+        const occurrences: string[] = [];
+        for (const spec of job.discreteActions) {
+            if (spec.cooldownTicks !== undefined && engine.hasAction(personId, spec.action, deps.tick, { withinTicks: spec.cooldownTicks })) {
+                continue;
+            }
+            const slots = Math.max(1, spec.maxPerTick ?? 1);
+            for (let slot = 0; slot < slots; slot++) {
+                if (rng.chance(spec.chancePerTick ?? 0)) {
+                    occurrences.push(spec.action);
+                }
+            }
+        }
+        return interleave(occurrences).map(actionId => ({
+            actionId,
+            sourceHook: 'jobOrchestrator',
+            priority: 50,
+            necessity: 'optional' as const,
+            band: 'opportunity' as const, // on-duty flavor seasons the shift, never steers it
+            mayInterrupt: false,
+            causationId: active?.startLogSeq ?? null, // flavor chains to the running work action
+        }));
+    },
+};
+
+// Weighted rotation: a deterministic pick among the job's continuous repertoire, so multi-activity jobs
+// (doctor: treating patients / doing rounds) vary across shifts instead of always running entry zero.
+function rotateContinuous(entries: { action: string; chancePerTick?: number }[], rng: SeededRandom): string | null {
+    if (entries.length === 0) {
+        return null;
+    }
+    const total = entries.reduce((sum, entry) => sum + (entry.chancePerTick ?? 1), 0);
+    let roll = rng.next() * total;
+    for (const entry of entries) {
+        roll -= entry.chancePerTick ?? 1;
+        if (roll <= 0) {
+            return entry.action;
+        }
+    }
+    return entries[entries.length - 1]!.action;
+}

@@ -1,0 +1,424 @@
+body {
+    margin: 0;
+    padding: 0;
+}
+
+#hud-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    display: block;
+    background-color: transparent;
+    pointer-events: none;
+    z-index: 100;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+canvas {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #46752f;
+    z-index: 50;
+}
+
+.glass {
+    backdrop-filter: blur(6px);
+    background-color: #0f353bad;
+}
+
+.react-draggable {
+    will-change: transform;
+    pointer-events: all;
+}
+
+.window {
+    box-sizing: border-box;
+    user-select: none;
+    background-color: #0000;
+    border: 2px solid #0f353b;
+    border-radius: 1px;
+    flex-direction: column;
+    font-family: system-ui;
+    display: flex;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 250px;
+    box-shadow: 0 0 10px #00000075;
+}
+
+.window button {
+    cursor: pointer;
+    user-select: none;
+    color: #fff;
+    text-align: center;
+    background-color: #092327;
+    border: 1px solid #274041;
+    border-radius: 4px;
+    padding: 4px 7px 2px;
+    font-size: 16px;
+    font-weight: bold;
+    display: inline-block;
+    position: relative;
+}
+
+.window .window-header {
+    box-sizing: border-box;
+    color: #fff;
+    text-align: center;
+    cursor: grab;
+    justify-content: space-between;
+    padding: 7px;
+    font-size: 18px;
+    letter-spacing: 1px;
+    display: flex;
+    position: relative;
+    background: linear-gradient(180deg, #011a1cad, #0f353bad);
+}
+
+.window .window-header>h3 {
+    margin: 0;
+    padding: 0;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.window .window-body {
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    padding: 10px;
+    font-size: 24px;
+    font-weight: normal;
+    color: #fff;
+    text-align: left;
+    width: 100%;
+    /* The ONE scroller for a window's content (task 131 follow-up): flex-fill the space between header and
+       footer (min-height:0 lets it actually shrink) and scroll here. Detail windows must NOT add their own
+       overflow container, or you get the double scrollbar. Replaces height:-webkit-fill-available, which
+       overflowed the flex column and produced a second scrollbar. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    background-color: #0f353b;
+    box-shadow: inset 0 0 5px #00000099;
+}
+
+.window .window-footer {
+    display: flex;
+    box-sizing: border-box;
+    color: #fff;
+    text-align: center;
+    padding: 5px;
+    font-size: 18px;
+    font-weight: bold;
+    position: relative;
+    justify-content: flex-end;
+}
+
+.window .window-footer button {
+    letter-spacing: 1px;
+    min-width: 60px;
+    padding: 6px 7px 3px 7px;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0f353b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #0a252a;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #071a1d;
+}
+
+.toolbar {
+    box-sizing: border-box;
+    backdrop-filter: blur(5px);
+    background: linear-gradient(#0f353b99, #0f353b33);
+    border-radius: 6px;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    width: auto;
+    height: 65px;
+    padding: 10px 45px;
+    display: flex;
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translate(-50%);
+    box-shadow: 0px 3px 10px #0000008c;
+    border: 1px solid #274041;
+}
+
+.toolbar button {
+    cursor: pointer;
+    user-select: none;
+    color: #fff;
+    text-align: center;
+    pointer-events: all;
+    background-color: #092327;
+    border: 1px solid #274041;
+    border-radius: 8px;
+    margin-top: -85px;
+    padding: 18px 19px;
+    font-weight: bold;
+    transition: transform .3s;
+    display: inline-block;
+    position: relative;
+    box-shadow: 0 0 10px #00000075;
+}
+
+.toolbar button::before {
+    content: "";
+    opacity: 1;
+    filter: blur(2px);
+    background: linear-gradient(#0923279c, #0000 90%);
+    border-radius: 8px;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+    width: 100%;
+    height: 25px;
+    transition: all .3s;
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    transform: translate(0, 100%);
+}
+
+.toolbar button.active {
+    background-color: #0f4a52;
+    border-color: #5cb8c4;
+    box-shadow: 0 0 12px #3a8f9988;
+}
+
+.toolbar button:hover {
+    transform: translate(0, -10px);
+}
+
+.toolbar button:hover::before {
+    content: "";
+    opacity: 0.35;
+    transform: translate(0, 40px);
+}
+
+.house-details {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* The resident list keeps its own space at the top and stays ABOVE the family-tree SVG (task 131 follow-up
+   #3): the larger 800×700 house window sizes the SVG big enough that, on a shorter viewport where the window
+   is capped, it used to overflow and intercept clicks on the resident links. */
+.house-residents {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    background-color: #0f353b;
+}
+
+#family-tree {
+    position: relative;
+    display: flex;
+    align-content: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#family-tree circle {
+    fill: cadetblue;
+}
+
+#family-tree line {
+    stroke: #ccc;
+}
+
+#family-tree .nodes text {
+    text-anchor: middle;
+    fill: rgb(218, 218, 218);
+    font-size: 16px;
+}
+
+#family-tree .link-labels text {
+    text-anchor: middle;
+    fill: rgb(156, 156, 255);
+    font-size: 14px;
+}
+
+.clock-widget {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: #f0f7ee;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #274041;
+    box-shadow: 0 3px 12px #0000008c;
+    /* The clock is clickable (opens the city overview, HUD §4.9/§4.12); it must receive pointer events —
+       its container (#hud-container) sets pointer-events: none, so this has to opt back in. */
+    pointer-events: all;
+    z-index: 1000;
+}
+
+.toasts {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.toast {
+    min-width: 220px;
+    max-width: 360px;
+    color: #f0f7ee;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 16px;
+    border-radius: 6px;
+    box-shadow: 0 3px 12px #0000008c;
+    border: 1px solid #274041;
+    backdrop-filter: blur(5px);
+    animation: toast-in 0.25s ease-out;
+}
+
+.toast-success {
+    background: linear-gradient(#0f4a2eee, #0f353bcc);
+    border-color: #2f7d52;
+}
+
+.toast-error {
+    background: linear-gradient(#5a1f1fee, #3b1010cc);
+    border-color: #7d2f2f;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.city-feed {
+    position: absolute;
+    /* Upper-right, just below the speed buttons (.time-controls: top 12px + ~30px tall + 10px gap), and
+       right-aligned with them (task 131 follow-up #4). Top-anchored so it grows DOWNWARD when expanded. */
+    top: 52px;
+    right: 12px;
+    width: 280px;
+    max-height: 40vh;
+    display: flex;
+    flex-direction: column;
+    color: #e8f5e9;
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    border: 1px solid #274041;
+    border-radius: 6px;
+    box-shadow: 0 3px 12px #0000008c;
+    pointer-events: all;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.city-feed-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #ffffff1a;
+}
+
+.city-feed-list {
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.city-feed-entry {
+    padding: 4px 12px;
+    line-height: 1.4;
+}
+
+.city-feed-entry.clickable {
+    cursor: pointer;
+}
+
+.city-feed-entry.clickable:hover {
+    background-color: #ffffff14;
+}
+
+.city-feed-date {
+    opacity: 0.55;
+    font-size: 11px;
+}
+
+.city-feed-empty {
+    padding: 8px 12px;
+    opacity: 0.55;
+}
+/* The time toolbar (W10 / proposal simulation-aliveness-3): pause/1x/4x/8x, floating top-right. */
+.time-controls {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 4px;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.time-controls-button {
+    background: #10312b;
+    color: #d4efe9;
+    border: 1px solid #1d4a41;
+    border-radius: 6px;
+    min-width: 40px;
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.time-controls-button:hover {
+    background: #17453c;
+}
+
+.time-controls-button.active {
+    background: #2a6e5f;
+    border-color: #3f9c87;
+    color: #ffffff;
+}

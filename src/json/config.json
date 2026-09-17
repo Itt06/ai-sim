@@ -1,0 +1,13 @@
+{
+    "debug": {
+        "masterSwitch": false,
+        "spawnKeys": false,
+        "drawCurbs": true,
+        "drawLanes": true,
+        "drawTileDepth": false,
+        "autoLoad": {
+            "enabled": false,
+            "save": ""
+        }
+    }
+}

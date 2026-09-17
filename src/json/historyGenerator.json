@@ -1,0 +1,35 @@
+{
+    "seed": 1337,
+    "founderCount": 100,
+    "recordThreshold": 250,
+    "recordYears": 90,
+    "ticksPerYear": 8640,
+    "daysPerStep": 1,
+    "warmMarginYears": 40,
+    "maxWarmupYears": 400,
+    "keepActionLog": true,
+    "reducedEventManifest": true,
+    "profile": false,
+    "skillSnapshotYears": 1,
+    "flushIntervalYears": 5,
+    "populationControl": {
+        "enabled": true,
+        "target": 250,
+        "band": 0.05,
+        "suppressLevel": 0.1,
+        "allowLevel": 1,
+        "pairRatePerYear": 1.5
+    },
+    "logicalWorld": {
+        "enabled": true,
+        "homes": true,
+        "schools": true,
+        "jobs": true,
+        "objects": true
+    },
+    "safety": {
+        "maxRuntimeMs": 0,
+        "maxPeople": 0
+    },
+    "hotYears": 10
+}

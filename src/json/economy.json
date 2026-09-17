@@ -1,0 +1,18 @@
+{
+    "startingPersonFunds": 2000,
+    "startingBusinessCapital": 20000,
+    "housingCost": 800,
+    "perCapitaCost": 400,
+    "growthMonths": 3,
+    "shrinkMonths": 4,
+    "bankruptcyDebtFloor": 0,
+    "bankruptcyMonths": 3,
+    "reoccupancyMonths": 2,
+    "evictionArrearsMonths": 3,
+    "recoveryFunds": 800,
+    "foundingCapitalThreshold": 1500,
+    "foundingChancePerMonth": 0.35,
+    "crimeFineAmount": 120,
+    "detentionDays": 10,
+    "detentionDaysRepeat": 30
+}
