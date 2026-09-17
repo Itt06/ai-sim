@@ -129,3 +129,5 @@ src/history/
 .parcel-cache/
 test-results/
 playwright-report/
+\.local/
+*.gguf
