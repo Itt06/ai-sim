@@ -9,22 +9,46 @@
 ```js
 localStorage.setItem('townbox.llm.config', JSON.stringify({
   baseUrl: 'http://127.0.0.1:11434/v1',
-  model: 'qwen3:8b',
+  model: 'Ornith-1.5-9B',
   temperature: 0.2,
-  timeoutMs: 15000
+  timeoutMs: 15000,
+  jsonMode: true
 }));
 location.reload();
 ```
 
-Ornithなど、`/v1/chat/completions` を提供するローカルサーバーも同じ形式で `baseUrl` と `model` を変更すれば利用できます。CORSでブラウザから直接接続できない場合、キーをブラウザへ渡さずローカルブリッジを使います。
+Ornith-1.5-9B、Ollama、llama.cpp server、LM Studioなど、`/v1/chat/completions` を提供するサーバーは `baseUrl` と `model` の変更だけで利用できます。JSON modeに対応しないサーバーでは `jsonMode: false` を指定できます。対応を誤判定した場合も400/404/422応答後に通常のstrict JSON要求へ自動フォールバックします。
+
+任意設定（省略時はローカル9B向け既定値）:
+
+```js
+localStorage.setItem('townbox.llm.runtime', JSON.stringify({
+  decisionCooldownTicks: 2,
+  candidateLimit: 24,
+  maxNearbyPeople: 8,
+  maxMemories: 6,
+  maxRecentEvents: 8,
+  maxStaleTicks: 24,
+  reflectionIntervalTicks: 24,
+  failureFallback: 'idle'
+}));
+```
+
+`failureFallback` は既定の `idle` ならLLM停止中も自由行動だけ待機し、`simulation` ならバックオフ中だけ既存Brainの自由行動へ戻します。必須行動はどちらでも常に既存Brainが処理します。
+
+CORSでブラウザから直接接続できない場合、キーをブラウザへ渡さずローカルブリッジを使います。
 
 ```powershell
 $env:TOWNBOX_LLM_BASE_URL='https://example.com/v1'
 $env:TOWNBOX_LLM_API_KEY='your-key'
+$env:TOWNBOX_LLM_ALLOWED_ORIGINS='http://localhost:3000,http://127.0.0.1:3000'
+$env:TOWNBOX_LLM_MAX_BODY_BYTES='262144'
 npm run llm-bridge
 ```
 
-その場合の `baseUrl` は `http://127.0.0.1:8787/v1` です。LLMが停止、タイムアウト、不正JSONを返した場合、その人物の自由行動だけが待機・バックオフになり、必須判断と他の住民は通常どおり進みます。公開ログには選択、短い理由、モデル、遅延、結果だけを出し、プロンプトや思考過程は保存しません。
+その場合の `baseUrl` は `http://127.0.0.1:8787/v1` です。ブリッジは `127.0.0.1` のみにbindし、許可Origin、正確な `/v1/chat/completions`、JSON Content-Type、本文上限を検査します。上流APIキーはサーバー側環境変数だけに保持され、ブラウザ、エラー、ログへ返しません。既定OriginはTownBoxの開発・統合テスト用localhostポートだけです。本番相当の配信元は `TOWNBOX_LLM_ALLOWED_ORIGINS` で明示してください。
+
+LLMが停止、タイムアウト、不正JSONを返した場合、その人物の自由行動だけが待機・バックオフになり、必須判断と他の住民は通常どおり進みます。人物画面には提案・開始・完了・失敗・必須行動による置換を分けて表示します。主観記憶と目標は通常セーブへ保存されますが、APIキー、リクエスト中Promise、生プロンプト、思考過程は保存しません。
 
 A 2D, top-down **city-builder prototype** built on **Phaser 4** + **React 18** in **TypeScript** — but the
 city is only the stage. TownBox is really a **high-fidelity simulation of individual lives**: a deterministic

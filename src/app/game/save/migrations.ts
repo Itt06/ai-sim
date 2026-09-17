@@ -57,6 +57,9 @@ export function migrateSnapshot(snapshot: WorldSnapshot): WorldSnapshot {
         // deterministically from (worldSeed, personId) at first read.
         snapshot.version = 16;
     }
+    if (snapshot.version < 17) {
+        snapshot.version = 17;
+    }
     return snapshot;
 }
 

@@ -96,6 +96,7 @@ const PersonDetails: FC<DetailsWindowProps> = ({ game, index, data, z, onFocus, 
     const personId = person.social.getPersonId();
     const balance = personId ? game.economy?.getPersonBalance(personId) : undefined;
     const llmInfo = personId ? game.llmController.status(personId) : null;
+    const llmDebug = personId && llmInfo?.controller === 'llm' ? game.llmController.debug() : null;
     // The append-only life log (task 040): every committed occurrence, newest first, capped for rendering.
     const fullLog = personId ? game.eventEngine?.getPersonLog(personId) ?? [] : [];
     const logEntries = fullLog.slice(-MAX_LOG_ENTRIES).reverse();
@@ -169,12 +170,23 @@ const PersonDetails: FC<DetailsWindowProps> = ({ game, index, data, z, onFocus, 
                                 {' '}· 状態: {llmInfo.status} · モデル: {llmInfo.model ?? '未設定'}
                                 {llmInfo.lastAction && <div>直近の判断: {ja(llmInfo.lastAction)}{llmInfo.latencyMs !== null ? `（${llmInfo.latencyMs}ms）` : ''}</div>}
                                 {llmInfo.reason && <div>理由: {llmInfo.reason}</div>}
+                                {llmInfo.lifecycle && <div>結果: {llmInfo.lifecycle}</div>}
+                                {llmDebug && llmDebug.goals.length > 0 && <div>目標: {llmDebug.goals.map(goal => goal.description).join(' / ')}</div>}
                                 {llmInfo.error && <div style={{ color: '#d9534f' }}>エラー: {llmInfo.error}</div>}
                             </>}
                             <button type="button" style={{ marginLeft: 8 }} onClick={() => {
                                 game.llmController.select(llmInfo.controller === 'llm' ? null : personId);
                                 setRefresh(value => value + 1);
                             }}>{llmInfo.controller === 'llm' ? '通常操作に戻す' : 'この人物をLLM操作'}</button>
+                            {llmDebug && <details style={{ marginTop: 6 }}>
+                                <summary>LLM観察・記憶ログ</summary>
+                                <small>入力 {llmInfo.promptChars ?? 0}文字 / 出力 {llmInfo.responseChars ?? 0}文字</small>
+                                <div><strong>参照した記憶:</strong> {llmDebug.retrievedMemoryIds.join(', ') || '—'}</div>
+                                <ul>{llmDebug.memories.slice(0, 5).map(memory => <li key={memory.id}>{memory.summary}</li>)}</ul>
+                                <div><strong>判断履歴:</strong></div>
+                                <ul>{llmDebug.decisions.slice(0, 8).map(decision => <li key={decision.id}>{decision.actionId}: {decision.stage}{decision.result ? ` — ${decision.result}` : ''}</li>)}</ul>
+                                <div><strong>候補:</strong> {llmDebug.candidates.map(candidate => candidate.actionId).join(', ')}</div>
+                            </details>}
                         </div>
                     )}
                 </section>

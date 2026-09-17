@@ -8,6 +8,7 @@ import Agenda from 'game/actions/Agenda';
 import Brain from 'game/actions/Brain';
 import LLMController from 'game/llm/LLMController';
 import OpenAICompatibleProvider, { LLMProviderConfig } from 'game/llm/OpenAICompatibleProvider';
+import { DEFAULT_LLM_RUNTIME_CONFIG, LLMRuntimeConfig } from 'game/llm/LLMDecisionTypes';
 import { assertValidData } from 'game/data/schemas';
 import Economy from 'game/economy/Economy';
 import EventEngine from 'game/events/EventEngine';
@@ -174,7 +175,7 @@ export default class GameManager {
         this.eventEngine = null;
         this.actionEngine = null;
         this.brain = null;
-        this.llmController = new LLMController(GameManager.createLLMProvider());
+        this.llmController = new LLMController(GameManager.createLLMProvider(), GameManager.createLLMRuntimeConfig());
         this.economy = null;
         this.inventory = null;
         this.schools = null;
@@ -285,6 +286,7 @@ export default class GameManager {
 
             // The Brain (task 046): the stateless per-person decision layer over the Action engine.
             this.brain = new Brain(this.actionEngine);
+            this.llmController.attachEngine(this.actionEngine);
             this.brain.setOptionalDecisionController(this.llmController);
 
             // Economy: per-person/business money balances + the ledger. A load restores balances during
@@ -381,6 +383,13 @@ export default class GameManager {
             console.warn('[TownBox LLM] 設定を読み込めませんでした', error);
             return null;
         }
+    }
+
+    private static createLLMRuntimeConfig(): LLMRuntimeConfig {
+        try {
+            const parsed = JSON.parse(localStorage.getItem('townbox.llm.runtime') ?? '{}') as Partial<LLMRuntimeConfig>;
+            return { ...DEFAULT_LLM_RUNTIME_CONFIG, ...parsed };
+        } catch { return DEFAULT_LLM_RUNTIME_CONFIG; }
     }
 
     // Sets up a fresh game's world (task 055/077 Part B). Picks a random per-game seed and SELECTS a window

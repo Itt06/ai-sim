@@ -50,6 +50,7 @@ export interface TickPlan {
     schoolOf?: (personId: PersonId) => SchoolFacts | null;
     // Detention facts (task 100): the detained hook keeps sentenced people at the facility.
     detentionOf?: (personId: PersonId) => { locationKey: string } | null;
+    householdOf?: (personId: PersonId) => { name: string; memberIds: PersonId[] } | null;
     // Completed-day skill progression (tasks 063/065): consumes this tick's commits inside the shared spine,
     // so school/work days convert to proficiency identically in both execution modes.
     skillProgression?: SkillProgression;
@@ -143,6 +144,7 @@ export async function runTick(plan: TickPlan): Promise<TickResult> {
             ...(plan.jobOf ? { jobOf: plan.jobOf } : {}),
             ...(plan.schoolOf ? { schoolOf: plan.schoolOf } : {}),
             ...(plan.detentionOf ? { detentionOf: plan.detentionOf } : {}),
+            ...(plan.householdOf ? { householdOf: plan.householdOf } : {}),
         }, result.committed, result, profiler?.sub);
         plan.engine.unbindMarkets();
         if (profiler && clock) {

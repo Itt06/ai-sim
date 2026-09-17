@@ -1117,6 +1117,7 @@ export default class City {
             jobOf: id => this.jobFactsOf(id, personByGenId),
             schoolOf: id => this.schoolFactsOf(id, personByGenId, tick, ticksPerYear),
             detentionOf: id => (Game.detention && Game.detention.isDetained(id, tick) ? Game.detention.detentionOf(id) : null),
+            householdOf: id => this.householdFactsOf(id, personByGenId),
             unattendedDependentAtHome: id => this.unattendedYoungDependentAtHome(id, personByGenId, population.getPeople(), tick, ticksPerYear),
         }, [], result);
         engine.unbindMarkets();
@@ -1126,6 +1127,12 @@ export default class City {
 
     // Job facts (task 046, extracted for LP-12): shift + workplace + the rank-resolved work repertoire,
     // joined from the jobs table by title. Consumed by handleTick's plan AND the wake pass.
+    private householdFactsOf(id: PersonId, personByGenId: Map<PersonId, Person>): { name: string; memberIds: PersonId[] } | null {
+        const home = personByGenId.get(id)?.social.getHome();
+        if (!(home instanceof House)) return null;
+        return { name: home.getHouseholdName(), memberIds: home.getResidents().map(person => person.social.getPersonId()).filter((personId): personId is PersonId => !!personId).sort() };
+    }
+
     private jobFactsOf(id: PersonId, personByGenId: Map<PersonId, Person>): JobFacts | null {
         const person = personByGenId.get(id);
         const job = person?.work.getJob();
@@ -1234,6 +1241,7 @@ export default class City {
             jobOf: id => this.jobFactsOf(id, personByGenId),
             // Detention facts (task 100): the detained hook keeps sentenced people at the facility.
             detentionOf: id => (Game.detention && Game.detention.isDetained(id, event.tick) ? Game.detention.detentionOf(id) : null),
+            householdOf: id => this.householdFactsOf(id, personByGenId),
             // School facts for the Brain's school-obligation hook (task 058): a valid assignment or null.
             schoolOf: id => this.schoolFactsOf(id, personByGenId, event.tick, ticksPerYear),
             ...(this.skillProgression ? { skillProgression: this.skillProgression } : {}),
@@ -1248,6 +1256,7 @@ export default class City {
                 this.reconcileDeaths(result.died, personByGenId);
                 // Death dissolves elective bonds (task 083) and needs (084); kinship stays derived.
                 for (const deceased of result.died) {
+                    if (Game.llmController?.selectedPerson() === deceased) Game.llmController.select(null);
                     Game.socialGraph?.removePerson(deceased);
                     Game.needs?.removePerson(deceased);
                     Game.agenda?.removePerson(deceased);
@@ -3491,5 +3500,3 @@ export default class City {
         console.log('Car spawning', vehicle);
     }
 }
-
-

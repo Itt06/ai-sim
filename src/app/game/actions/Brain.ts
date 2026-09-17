@@ -31,6 +31,8 @@ import { pursuitHook } from 'game/actions/Pursuit';
 import { doctorRoundsHook, treatmentHook } from 'game/actions/Treatment';
 import { guardianshipHook } from 'game/actions/Guardianship';
 import { socialOpportunityHook } from 'game/actions/SocialOpportunity';
+import { buildLLMActionCandidates } from 'game/llm/LLMActionCandidates';
+import { LLMActionCandidate } from 'game/llm/LLMDecisionTypes';
 import { schoolObligationHook } from 'game/skills/SchoolOrchestrator';
 import arbitrationConfig from 'json/arbitration.json';
 import inventoryConfig from 'json/inventory.json';
@@ -138,6 +140,7 @@ export interface BrainDeps extends ActionDeps {
     // young dependent who is also home. Resolved by the host from households + live presence; absent in
     // bootstrap/the generator (presence is a map concept), so the guardianship hook is a no-op off-map.
     unattendedDependentAtHome?: (personId: PersonId) => boolean;
+    householdOf?: (personId: PersonId) => { name: string; memberIds: PersonId[] } | null;
 }
 
 // Dispatched today: `onTick` and `onEventCommitted` (processTick), and `onActionFailed` (the decline path,
@@ -167,10 +170,13 @@ export interface BrainHook {
     propose(ctx: HookContext): ActionIntent[];
 }
 
-export interface OptionalActionCandidate { actionId: string; label: string; }
 export interface OptionalDecisionController {
     controls(personId: PersonId): boolean;
-    propose(personId: PersonId, deps: BrainDeps, candidates: readonly OptionalActionCandidate[]): ActionIntent | null;
+    delegatesOptionalChoices?(personId: PersonId): boolean;
+    candidateLimit?(): number;
+    needsCandidates?(personId: PersonId, tick: number): boolean;
+    propose(personId: PersonId, deps: BrainDeps, candidates: readonly LLMActionCandidate[]): ActionIntent | null;
+    noteResolution?(personId: PersonId, actionId: string, stage: 'action_started' | 'action_blocked' | 'superseded_by_mandatory', result?: string): void;
 }
 
 
@@ -236,16 +242,8 @@ export default class Brain {
 
     setOptionalDecisionController(controller: OptionalDecisionController | null): void { this.optionalController = controller; }
 
-    availableOptionalActions(personId: PersonId, deps: BrainDeps, limit = 24): OptionalActionCandidate[] {
-        const context = this.actionEngine.contextFor(personId, deps);
-        return this.getFreeTimeCandidates()
-            .filter(({ def, actionId, venueKind }) =>
-                !Object.values(def.parameters ?? {}).some(parameter => parameter.required)
-                && !(venueKind !== undefined && deps.ctx.world && !deps.ctx.world.hasVenue(venueKind))
-                && !(def.selection?.cooldownTicks !== undefined && this.actionEngine.hasAction(personId, actionId, deps.tick, { withinTicks: def.selection.cooldownTicks }))
-                && (!def.requirements || evaluatePredicateCached(def.requirements, context)))
-            .slice(0, limit)
-            .map(({ actionId, def }) => ({ actionId, label: def.label }));
+    availableOptionalActions(personId: PersonId, deps: BrainDeps, limit = 24): LLMActionCandidate[] {
+        return buildLLMActionCandidates(personId, deps, this.actionEngine, limit);
     }
 
     // The derived broad state (038 §8): stable enum + the activity id held separately.
@@ -321,7 +319,7 @@ export default class Brain {
         this.profileSub = sub;
         for (const personId of [...agentIds].sort()) {
             const intents: ActionIntent[] = [];
-            const llmControlled = this.optionalController?.controls(personId) ?? false;
+            const llmControlled = this.optionalController?.delegatesOptionalChoices?.(personId) ?? this.optionalController?.controls(personId) ?? false;
             for (const hook of this.hooks) {
                 if (llmControlled && ['wokeUp', 'socialOpportunity', 'inventoryOpportunity', 'idleFallback'].includes(hook.id)) {
                     continue;
@@ -342,7 +340,8 @@ export default class Brain {
                 }
             }
             if (llmControlled && !this.actionEngine.activeInstanceOf(personId)) {
-                const proposal = this.optionalController?.propose(personId, deps, this.availableOptionalActions(personId, deps));
+                const needsCandidates = this.optionalController?.needsCandidates?.(personId, deps.tick) ?? true;
+                const proposal = needsCandidates ? this.optionalController?.propose(personId, deps, this.availableOptionalActions(personId, deps, this.optionalController?.candidateLimit?.() ?? 24)) : null;
                 if (proposal) intents.push(proposal);
             }
             const tResolve = clock ? clock() : 0;
@@ -369,6 +368,7 @@ export default class Brain {
         );
 
         const failures: { actionId: string; reason: string }[] = [];
+        const llmIntent = intents.find(intent => intent.sourceHook === 'llmOptionalChoice');
         for (const intent of intents) {
             const def = this.actionEngine.getDefinition(intent.actionId);
             if (!def) {
@@ -428,6 +428,12 @@ export default class Brain {
                 personId, intent.actionId, intent.params ?? {}, { source: 'brain', causationId: intent.causationId },
                 deps, result, null, undefined, intent.locationOverride
             );
+            if (outcome.ok) {
+                if (intent.sourceHook === 'llmOptionalChoice') this.optionalController?.noteResolution?.(personId, intent.actionId, 'action_started');
+                else if (llmIntent) this.optionalController?.noteResolution?.(personId, llmIntent.actionId, 'superseded_by_mandatory', intent.actionId);
+            } else if (intent.sourceHook === 'llmOptionalChoice') {
+                this.optionalController?.noteResolution?.(personId, intent.actionId, 'action_blocked', outcome.reason);
+            }
             if (!outcome.ok && outcome.reason === 'consentDeclined') {
                 failures.push({ actionId: intent.actionId, reason: outcome.reason });
             }

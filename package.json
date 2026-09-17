@@ -31,6 +31,7 @@
     "generate-history": "cross-env NODE_OPTIONS=--max-old-space-size=16384 tsx scripts/generateHistoryAsset.ts",
     "decode-person": "tsx scripts/decodePersonHistory.ts"
     ,"llm-bridge": "node scripts/llmBridge.mjs"
+    ,"test:llm-bridge": "node --test scripts/llmBridge.test.mjs"
   },
   "keywords": [
     "game",
