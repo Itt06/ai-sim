@@ -1,8 +1,8 @@
 import { FC, useEffect, useState } from 'react';
 
+import { ja } from '../../i18n';
 import Workplace from 'game/world/Workplace';
 import Window from 'hud/Window';
-import { ja } from '../../i18n';
 import { DetailsWindowProps } from 'types/HUD';
 import { summarizePositions } from 'util/positions';
 

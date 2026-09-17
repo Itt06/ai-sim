@@ -1,5 +1,31 @@
 # TownBox
 
+## 1人だけLLMで操作する
+
+通常は全住民が従来どおり決定論的な `Brain` で動きます。人物詳細の「この人物をLLM操作」を押した1人だけ、暇なときの自由行動をOpenAI互換APIへ問い合わせます。仕事、学校、生存欲求、拘束、避難、治療などの必須判断は従来のシミュレーションが優先され、LLMはゲーム状態を直接変更できません。
+
+ブラウザの開発者コンソールで接続先を設定し、再読み込みします（APIキーは保存しないでください）。
+
+```js
+localStorage.setItem('townbox.llm.config', JSON.stringify({
+  baseUrl: 'http://127.0.0.1:11434/v1',
+  model: 'qwen3:8b',
+  temperature: 0.2,
+  timeoutMs: 15000
+}));
+location.reload();
+```
+
+Ornithなど、`/v1/chat/completions` を提供するローカルサーバーも同じ形式で `baseUrl` と `model` を変更すれば利用できます。CORSでブラウザから直接接続できない場合、キーをブラウザへ渡さずローカルブリッジを使います。
+
+```powershell
+$env:TOWNBOX_LLM_BASE_URL='https://example.com/v1'
+$env:TOWNBOX_LLM_API_KEY='your-key'
+npm run llm-bridge
+```
+
+その場合の `baseUrl` は `http://127.0.0.1:8787/v1` です。LLMが停止、タイムアウト、不正JSONを返した場合、その人物の自由行動だけが待機・バックオフになり、必須判断と他の住民は通常どおり進みます。公開ログには選択、短い理由、モデル、遅延、結果だけを出し、プロンプトや思考過程は保存しません。
+
 A 2D, top-down **city-builder prototype** built on **Phaser 4** + **React 18** in **TypeScript** — but the
 city is only the stage. TownBox is really a **high-fidelity simulation of individual lives**: a deterministic
 genealogy of thousands of people who are born, form families, learn skills, get jobs, earn and spend money,

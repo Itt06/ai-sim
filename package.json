@@ -30,6 +30,7 @@
     "docs:events": "UPDATE_EVENT_DOCS=1 jest test/events/eventClassification.test.ts",
     "generate-history": "cross-env NODE_OPTIONS=--max-old-space-size=16384 tsx scripts/generateHistoryAsset.ts",
     "decode-person": "tsx scripts/decodePersonHistory.ts"
+    ,"llm-bridge": "node scripts/llmBridge.mjs"
   },
   "keywords": [
     "game",

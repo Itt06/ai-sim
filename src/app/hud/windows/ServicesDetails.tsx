@@ -1,8 +1,8 @@
 import { FC, useEffect, useState } from 'react';
 
+import { ja } from '../../i18n';
 import City from 'game/City';
 import Window from 'hud/Window';
-import { ja } from '../../i18n';
 import constructionConfig from 'json/construction.json';
 import servicesConfig from 'json/services.json';
 import { Tool } from 'types/Cursor';

@@ -167,6 +167,12 @@ export interface BrainHook {
     propose(ctx: HookContext): ActionIntent[];
 }
 
+export interface OptionalActionCandidate { actionId: string; label: string; }
+export interface OptionalDecisionController {
+    controls(personId: PersonId): boolean;
+    propose(personId: PersonId, deps: BrainDeps, candidates: readonly OptionalActionCandidate[]): ActionIntent | null;
+}
+
 
 export default class Brain {
     private actionEngine: ActionEngine;
@@ -188,6 +194,7 @@ export default class Brain {
     // Transient --profile sub-timer (task 079 pass 2), set for the duration of processTick so
     // computeFreeTimeAction can attribute its internal segments. Undefined outside profiled runs.
     private profileSub: SubProfiler | undefined;
+    private optionalController: OptionalDecisionController | null = null;
 
     constructor(actionEngine: ActionEngine) {
         this.actionEngine = actionEngine;
@@ -225,6 +232,20 @@ export default class Brain {
 
     registerHook(hook: BrainHook): void {
         this.hooks.push(hook);
+    }
+
+    setOptionalDecisionController(controller: OptionalDecisionController | null): void { this.optionalController = controller; }
+
+    availableOptionalActions(personId: PersonId, deps: BrainDeps, limit = 24): OptionalActionCandidate[] {
+        const context = this.actionEngine.contextFor(personId, deps);
+        return this.getFreeTimeCandidates()
+            .filter(({ def, actionId, venueKind }) =>
+                !Object.values(def.parameters ?? {}).some(parameter => parameter.required)
+                && !(venueKind !== undefined && deps.ctx.world && !deps.ctx.world.hasVenue(venueKind))
+                && !(def.selection?.cooldownTicks !== undefined && this.actionEngine.hasAction(personId, actionId, deps.tick, { withinTicks: def.selection.cooldownTicks }))
+                && (!def.requirements || evaluatePredicateCached(def.requirements, context)))
+            .slice(0, limit)
+            .map(({ actionId, def }) => ({ actionId, label: def.label }));
     }
 
     // The derived broad state (038 §8): stable enum + the activity id held separately.
@@ -300,7 +321,11 @@ export default class Brain {
         this.profileSub = sub;
         for (const personId of [...agentIds].sort()) {
             const intents: ActionIntent[] = [];
+            const llmControlled = this.optionalController?.controls(personId) ?? false;
             for (const hook of this.hooks) {
+                if (llmControlled && ['wokeUp', 'socialOpportunity', 'inventoryOpportunity', 'idleFallback'].includes(hook.id)) {
+                    continue;
+                }
                 const t0 = clock ? clock() : 0;
                 if (hook.kind === 'onTick') {
                     intents.push(...hook.propose({ personId, deps, brain: this, ...(sub ? { sub } : {}) }));
@@ -315,6 +340,10 @@ export default class Brain {
                 if (sub && clock) {
                     sub.brainHooks[hook.id] = (sub.brainHooks[hook.id] ?? 0) + (clock() - t0);
                 }
+            }
+            if (llmControlled && !this.actionEngine.activeInstanceOf(personId)) {
+                const proposal = this.optionalController?.propose(personId, deps, this.availableOptionalActions(personId, deps));
+                if (proposal) intents.push(proposal);
             }
             const tResolve = clock ? clock() : 0;
             this.resolveIntents(personId, intents, deps, result);

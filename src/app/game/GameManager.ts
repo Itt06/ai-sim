@@ -6,6 +6,8 @@ import Clock from 'game/Clock';
 import ActionEngine from 'game/actions/ActionEngine';
 import Agenda from 'game/actions/Agenda';
 import Brain from 'game/actions/Brain';
+import LLMController from 'game/llm/LLMController';
+import OpenAICompatibleProvider, { LLMProviderConfig } from 'game/llm/OpenAICompatibleProvider';
 import { assertValidData } from 'game/data/schemas';
 import Economy from 'game/economy/Economy';
 import EventEngine from 'game/events/EventEngine';
@@ -62,6 +64,7 @@ export default class GameManager {
     public eventEngine: EventEngine | null;
     public actionEngine: ActionEngine | null;
     public brain: Brain | null;
+    public llmController: LLMController;
     public economy: Economy | null;
     public inventory: Inventory | null;
     public schools: SchoolRegistry | null;
@@ -171,6 +174,7 @@ export default class GameManager {
         this.eventEngine = null;
         this.actionEngine = null;
         this.brain = null;
+        this.llmController = new LLMController(GameManager.createLLMProvider());
         this.economy = null;
         this.inventory = null;
         this.schools = null;
@@ -281,6 +285,7 @@ export default class GameManager {
 
             // The Brain (task 046): the stateless per-person decision layer over the Action engine.
             this.brain = new Brain(this.actionEngine);
+            this.brain.setOptionalDecisionController(this.llmController);
 
             // Economy: per-person/business money balances + the ledger. A load restores balances during
             // deserialize; balances are otherwise seeded at household/business placement.
@@ -359,6 +364,23 @@ export default class GameManager {
         this.on("update", { callback: this.advanceTime, context: this });
         // The HUD time toolbar (W10): pause/1×/4×/8× flow through the bus like every cross-system signal.
         this.on("setTimeScale", { callback: (scale: number) => { this.setTimeScale(scale); }, context: this });
+    }
+
+    private static createLLMProvider(): OpenAICompatibleProvider | null {
+        try {
+            const raw = localStorage.getItem('townbox.llm.config');
+            if (!raw) return null;
+            const config = JSON.parse(raw) as Partial<LLMProviderConfig>;
+            if (typeof config.baseUrl !== 'string' || typeof config.model !== 'string') return null;
+            if (config.apiKey) {
+                console.warn('[TownBox LLM] APIキーはブラウザに保存せず、ローカルブリッジの環境変数を使ってください');
+                delete config.apiKey;
+            }
+            return new OpenAICompatibleProvider(config as LLMProviderConfig);
+        } catch (error) {
+            console.warn('[TownBox LLM] 設定を読み込めませんでした', error);
+            return null;
+        }
     }
 
     // Sets up a fresh game's world (task 055/077 Part B). Picks a random per-game seed and SELECTS a window

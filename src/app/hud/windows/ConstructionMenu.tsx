@@ -1,7 +1,7 @@
 import React from 'react';
 
-import Window from 'hud/Window';
 import { ja } from '../../i18n';
+import Window from 'hud/Window';
 import constructionConfig from 'json/construction.json';
 import { Tool } from 'types/Cursor';
 import { DetailsWindowProps } from 'types/HUD';

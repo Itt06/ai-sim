@@ -1,10 +1,10 @@
 import { FC, useEffect, useState } from 'react';
 
+import { ja } from '../../i18n';
 import Person from 'game/agents/Person';
 import { sortedSkillEntries } from 'game/skills/SkillBook';
 import Workplace from 'game/world/Workplace';
 import Window from 'hud/Window';
-import { ja } from '../../i18n';
 import { isFollowed, toggleFollow, subscribeFollow } from 'hud/followStore';
 import jobsConfig from 'json/jobs.json';
 import SKILLS from 'json/skills.json';
@@ -95,6 +95,7 @@ const PersonDetails: FC<DetailsWindowProps> = ({ game, index, data, z, onFocus, 
 
     const personId = person.social.getPersonId();
     const balance = personId ? game.economy?.getPersonBalance(personId) : undefined;
+    const llmInfo = personId ? game.llmController.status(personId) : null;
     // The append-only life log (task 040): every committed occurrence, newest first, capped for rendering.
     const fullLog = personId ? game.eventEngine?.getPersonLog(personId) ?? [] : [];
     const logEntries = fullLog.slice(-MAX_LOG_ENTRIES).reverse();
@@ -161,6 +162,21 @@ const PersonDetails: FC<DetailsWindowProps> = ({ game, index, data, z, onFocus, 
                     )}
                     <p><strong>住居:</strong> {home ? `${home.getHouseholdName()}世帯` : '住居なし'}</p>
                     {balance !== undefined && <p><strong>残高:</strong> ${balance.toLocaleString()}</p>}
+                    {personId && llmInfo && (
+                        <div data-testid="person-controller" style={{ border: '1px solid rgba(127,127,127,.35)', padding: 6, marginTop: 6 }}>
+                            <strong>操作:</strong> {llmInfo.controller === 'llm' ? 'LLM' : '通常シミュレーション'}
+                            {llmInfo.controller === 'llm' && <>
+                                {' '}· 状態: {llmInfo.status} · モデル: {llmInfo.model ?? '未設定'}
+                                {llmInfo.lastAction && <div>直近の判断: {ja(llmInfo.lastAction)}{llmInfo.latencyMs !== null ? `（${llmInfo.latencyMs}ms）` : ''}</div>}
+                                {llmInfo.reason && <div>理由: {llmInfo.reason}</div>}
+                                {llmInfo.error && <div style={{ color: '#d9534f' }}>エラー: {llmInfo.error}</div>}
+                            </>}
+                            <button type="button" style={{ marginLeft: 8 }} onClick={() => {
+                                game.llmController.select(llmInfo.controller === 'llm' ? null : personId);
+                                setRefresh(value => value + 1);
+                            }}>{llmInfo.controller === 'llm' ? '通常操作に戻す' : 'この人物をLLM操作'}</button>
+                        </div>
+                    )}
                 </section>
 
                 {needLevels && (
